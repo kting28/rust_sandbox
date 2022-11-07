@@ -1,0 +1,9 @@
+[package]
+name = "sandbox"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bitfield = "0.14.0"
+libc-print = "0.1.20"
+sealed = "0.4.0"
