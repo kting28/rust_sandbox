@@ -87,6 +87,17 @@ struct Struct1 {
     bf_arry : [BfStruct; 4]
 }
 
+struct GenericStruct<const N: usize> {
+    array: [i32; N]
+}
+impl <const N: usize> GenericStruct<N> {
+
+    fn print(&self) {
+        println!("{:?}", self.array);
+
+    }
+}
+
 // Helpers for this example
 fn print_type_of<T>(_: &T) {
     println!("{}", core::any::type_name::<T>())
@@ -145,13 +156,29 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
     println!("size of BitField2 {}", core::mem::size_of::<BfStructByteArr<[u8;3]>>());
     print_type_of(&bitfield2);
 
-    // Crate spsc::Queue
+    // Crate spsc::Queue -  Capacity is N-1
     let mut rb: Queue<u8, 4> = Queue::new();
-    assert!(rb.enqueue(0).is_ok());
-    assert!(rb.enqueue(1).is_ok());
-    assert!(rb.enqueue(2).is_ok());
-    assert!(rb.enqueue(3).is_err()); // full
-    assert_eq!(rb.dequeue(), Some(0));
+    let (mut p, mut c) = rb.split();
+    assert_eq!(p.ready(), true);
+    assert_eq!(c.ready(), false);
+
+    assert!(p.enqueue(0).is_ok());
+    assert!(p.enqueue(1).is_ok());
+    assert!(p.enqueue(2).is_ok());
+    assert!(p.enqueue(3).is_err()); // full
+    assert!(p.enqueue(4).is_err()); // full
+    
+    assert_eq!(c.dequeue(), Some(0));
+
+    assert!(p.enqueue(3).is_ok());
+    let value = c.dequeue().unwrap();
+    println!("Dequeued value = {}", value);
+
+    // Test generics
+    let gen4 = GenericStruct{array: [0;4]};
+    let gen8 = GenericStruct{array: [0;8]};
+    gen4.print();
+    gen8.print();
 
     return 0;
 
@@ -162,6 +189,7 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
 // provided by libstd.
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
+    println!("panic!");
     loop {}
     //core::intrinsics::abort()
 }
