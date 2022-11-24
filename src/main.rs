@@ -98,6 +98,36 @@ impl <const N: usize> GenericStruct<N> {
     }
 }
 
+
+// Simple static global implementation
+struct Shared {
+    in_use: u32,
+    data: Struct1,
+
+}
+impl Shared {
+    fn take_data(&mut self) -> Option<&mut Struct1> {
+        // Requires mutex or int_lock
+        if self.in_use == 0 {
+            self.in_use = 1;
+            Some(&mut self.data)
+        }
+        else {
+            None
+        }
+        //unlock
+    }
+    fn return_data(&mut self) {
+        assert_eq!(self.in_use, 1);
+        // Requires mutex or int_lock
+        self.in_use = 0;
+        // unlock
+    }
+}
+static mut SHARED: Shared = Shared {
+    in_use:0, data: Struct1 { id:0 , bf_arry: [BfStruct(0); 4]},
+};
+
 // Helpers for this example
 fn print_type_of<T>(_: &T) {
     println!("{}", core::any::type_name::<T>())
@@ -180,6 +210,14 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
     gen4.print();
     gen8.print();
 
+    let shared_intf = unsafe {SHARED.take_data() };
+
+    println!("{}", shared_intf.unwrap().id);
+
+    //let shared_intf2 = unsafe {SHARED.take_data() };
+    // This asserts as Option is returned is None 
+    //println!("{}", shared_intf2.unwrap().id);
+    
     return 0;
 
 }
@@ -193,7 +231,6 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
     //core::intrinsics::abort()
 }
-
 
 // The first of these functions, rust_eh_personality, is used by the failure mechanisms of the
 // compiler. This is often mapped to GCC's personality function (see the libstd implementation for
