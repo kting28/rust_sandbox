@@ -100,6 +100,7 @@ impl <const N: usize> GenericStruct<N> {
 
 
 // Simple static global implementation
+// Inspired by https://docs.rust-embedded.org/book/peripherals/singletons.html
 struct Shared {
     in_use: u32,
     data: Struct1,
@@ -213,6 +214,8 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
     let shared_intf = unsafe {SHARED.take_data() };
 
     println!("{}", shared_intf.unwrap().id);
+
+    unsafe {SHARED.return_data() };
 
     //let shared_intf2 = unsafe {SHARED.take_data() };
     // This asserts as Option is returned is None 
