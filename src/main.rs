@@ -1,13 +1,14 @@
 /*
 Embedded Rust Examples
 */
-//allows definition of panic, eh_personality
+//allows custom definition of panic, eh_personality
 #![feature(lang_items, core_intrinsics)] 
 // no rust std library
 #![no_std] 
 //define our own main, otherwise fn main depends of std
 #![no_main] 
 
+pub mod atomics;
 pub mod spsc;
 
 #[macro_use]

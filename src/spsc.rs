@@ -89,38 +89,13 @@
 //! - The numbers reported correspond to the successful path (i.e. `Some` is returned by `dequeue`
 //! and `Ok` is returned by `enqueue`).
 
-use core::{cell::UnsafeCell, fmt, hash, mem::MaybeUninit, ptr, cell::Cell};
+use core::{cell::UnsafeCell, fmt, hash, mem::MaybeUninit, ptr};
 
 //#[cfg(full_atomic_polyfill)]
 //use atomic_polyfill::{AtomicUsize, Ordering};
 //#[cfg(not(full_atomic_polyfill))]
 //use core::sync::atomic::{AtomicUsize, Ordering};
-#[non_exhaustive]
-pub enum Ordering {
-    Relaxed,
-    Release,
-    Acquire,
-    AcqRel,
-    SeqCst,
-}
-pub struct AtomicUsize { 
-    pub(crate) val: Cell<usize>
-}
-impl AtomicUsize{
-
-    #[inline]
-    fn store(&self, val: usize, _ordering: Ordering) {
-        self.val.set(val)
-    }
-    #[inline]
-    fn load(&self, _ordering: Ordering) -> usize {
-        self.val.get()
-    }
-    pub const fn new(val: usize) -> Self {
-        AtomicUsize { val: Cell::new(val)  }
-    }
-}
-
+use crate::atomics::{AtomicUsize, Ordering};
 /// A statically allocated single producer single consumer queue with a capacity of `N - 1` elements
 ///
 /// *IMPORTANT*: To get better performance use a value for `N` that is a power of 2 (e.g. `16`, `32`,
