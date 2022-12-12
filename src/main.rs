@@ -10,6 +10,7 @@ Embedded Rust Examples
 
 pub mod atomics;
 pub mod spsc;
+pub mod ringbuf;
 
 #[macro_use]
 extern crate bitfield;
@@ -17,6 +18,8 @@ extern crate libc_print;
 use libc_print::std_name::{println};
 
 use spsc::Queue;
+
+use ringbuf::RingBuf;
 
 // Structure Examples
 #[derive(Copy, Clone)]
@@ -221,8 +224,19 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
     //let shared_intf2 = unsafe {SHARED.take_data() };
     // This asserts as Option is returned is None 
     //println!("{}", shared_intf2.unwrap().id);
+
+    let a: u8 =  1;
+    let b: u8 = 255;
+    let c: u8 = a.wrapping_sub(b);
+
+    println!("{} - {} = {}", a, b, c);
+    
+    let mut rbuf: RingBuf<u32, 4> = RingBuf::new(0);
+
+    rbuf.push(4);
     
     return 0;
+
 
 }
 
