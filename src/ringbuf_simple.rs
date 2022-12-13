@@ -1,26 +1,19 @@
 
-//Atempt with Ringbuf using interior mutability
-
-use core::{cell::Cell, cell::UnsafeCell};
-use core::{mem::MaybeUninit};
-
-pub struct RingBuf<T, const N: usize> {
+pub struct RingBufSimple<T, const N: usize> {
     // this is from where we dequeue items
-    pub rd_idx: Cell<usize>,
+    pub rd_idx: usize,
     //  where we enqueue new items
-    pub wr_idx: Cell<usize>,
+    pub wr_idx: usize,
     // this is the backend array
-    pub buffer_ucell: [UnsafeCell<MaybeUninit<T>>; N],
+    pub buffer: [T; N],
 }
 
 
-impl <T: core::marker::Copy, const N: usize> RingBuf<T, N> {
+impl <T: core::marker::Copy, const N: usize> RingBufSimple<T, N> {
     
-    const INIT_U: UnsafeCell<MaybeUninit<T>> = UnsafeCell::new(MaybeUninit::uninit());
-
     #[inline]
-    pub const fn new() -> Self {
-        RingBuf { rd_idx: Cell::new(0), wr_idx: Cell::new(0), buffer_ucell: [Self::INIT_U; N] }
+    pub const fn new(init: T) -> Self {
+        RingBufSimple { rd_idx: 0, wr_idx:0, buffer: [init; N ] }
     }
 
     #[inline]
@@ -52,27 +45,27 @@ impl <T: core::marker::Copy, const N: usize> RingBuf<T, N> {
 
     #[inline]
     pub fn size(&self) -> usize {
-        self.wr_idx.get().wrapping_sub(self.rd_idx.get())
+        // simple sub will panic on overflow
+        self.wr_idx.wrapping_sub(self.rd_idx)
     }
+
     #[inline]
     pub fn full(&self) -> bool {
         self.size() == N
     }
     #[inline]
-    pub fn push(&self, val: T) {
+    // Must be &mut self, preventing any producer and consumer type of split usage.
+    pub fn push(&mut self, val: T) {
         assert!(!self.full());
-        unsafe {(*self.buffer_ucell[self.wr_idx.get()].get()).write(val);}
-        self.wr_idx.set(Self::wrap(self.wr_idx.get()+1));
+        self.buffer[Self::mask(self.wr_idx)] = val;
+        self.wr_idx = Self::wrap(self.wr_idx+1);
     }
     #[inline]
-    pub fn pop(& self) -> T {
+    // Must be &mut self, preventing any producer and consumer type of split usage.
+    pub fn pop(&mut self) -> T {
         assert!(!self.empty());
-        let val = unsafe {*(self.buffer_ucell[Self::mask(self.rd_idx.get())].get() as *const T)};
-        self.rd_idx.set(Self::wrap(self.rd_idx.get() + 1));
+        let val = self.buffer[Self::mask(self.rd_idx)];
+        self.rd_idx = Self::wrap(self.rd_idx + 1);
         val
     }
- 
 }
-
-
-

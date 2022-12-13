@@ -11,6 +11,7 @@ Embedded Rust Examples
 pub mod atomics;
 pub mod spsc;
 pub mod ringbuf;
+pub mod ringbuf_simple;
 
 #[macro_use]
 extern crate bitfield;
@@ -20,6 +21,7 @@ use libc_print::std_name::{println};
 use spsc::Queue;
 
 use ringbuf::RingBuf;
+use ringbuf_simple::RingBufSimple;
 
 // Structure Examples
 #[derive(Copy, Clone)]
@@ -138,6 +140,11 @@ fn print_type_of<T>(_: &T) {
     println!("{}", core::any::type_name::<T>())
 }
 
+
+fn ringbuf_consume<T: core::marker::Copy, const N: usize>(rbuf: &RingBuf<T, N>) {
+    rbuf.pop();
+}
+
 #[no_mangle]
 //fn main()
 pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
@@ -225,16 +232,23 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
     // This asserts as Option is returned is None 
     //println!("{}", shared_intf2.unwrap().id);
 
-    let a: u8 =  1;
-    let b: u8 = 255;
-    let c: u8 = a.wrapping_sub(b);
-
-    println!("{} - {} = {}", a, b, c);
+    // wrapping_sub demonstration
+    //let a: u8 =  1;
+    //let b: u8 = 255;
+    //let c: u8 = a.wrapping_sub(b);
+    //println!("{} - {} = {}", a, b, c);
+        
+    let mut rbufs: RingBufSimple<u32, 4> = RingBufSimple::new(0);
+    rbufs.push(4);
+    // Here there's no way to pass the mutable reference to anywhere
+    // else since there's can be only 1 mutable reference
     
-    let mut rbuf: RingBuf<u32, 4> = RingBuf::new(0);
+    let rbuf: RingBuf<u32, 4> = RingBuf::new();
 
     rbuf.push(4);
-    
+    // can pass a non-mutable reference forward
+    ringbuf_consume(&rbuf);
+
     return 0;
 
 
