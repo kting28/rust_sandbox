@@ -61,7 +61,7 @@ impl <T: core::marker::Copy, const N: usize> RingBuf<T, N> {
     #[inline]
     pub fn push(&self, val: T) {
         assert!(!self.full());
-        unsafe {(*self.buffer_ucell[self.wr_idx.get()].get()).write(val);}
+        unsafe {(*self.buffer_ucell[Self::mask(self.wr_idx.get())].get()).write(val);}
         self.wr_idx.set(Self::wrap(self.wr_idx.get()+1));
     }
     #[inline]
