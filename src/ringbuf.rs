@@ -4,15 +4,57 @@
 use core::{cell::Cell, cell::UnsafeCell};
 use core::{mem::MaybeUninit};
 
+#[derive(Eq, PartialEq)]
+pub struct Index<const N: usize> {
+    cell: Cell<usize>
+}
+impl <const N: usize> Index<N> {
+
+    #[inline]
+    pub fn wrap_inc(&self) {
+        let val = self.cell.get() + 1;
+        // Wrap index between [0, 2*N-1]
+        // Note this is only needed if N is not power of 2
+        // For power 2 of values, the natural overflow wrap
+        // matches the wraparound of N as well
+        if !N.is_power_of_two() && val <= 2*N-1 {
+            self.cell.set(val - 2*N);
+        }
+        else {
+            self.cell.set(val);
+        }
+    }
+    
+    #[inline]
+    pub fn mask(&self) -> usize {
+        let val = self.cell.get();
+        if N.is_power_of_two() {
+            val & (N-1)
+        }
+        else {
+            if val <= N - 1 {
+                val
+            } else {
+                val - N
+            }
+        }
+    }
+    #[inline]
+    pub fn get(&self) -> usize {
+        self.cell.get()
+    }
+    pub const fn new(val: usize) -> Self {
+        Index { cell: Cell::new(val) }
+    }
+}
 pub struct RingBuf<T, const N: usize> {
     // this is from where we dequeue items
-    pub rd_idx: Cell<usize>,
+    pub rd_idx: Index<N>,
     //  where we enqueue new items
-    pub wr_idx: Cell<usize>,
+    pub wr_idx: Index<N>,
     // this is the backend array
-    pub buffer_ucell: [UnsafeCell<MaybeUninit<T>>; N],
+    buffer_ucell: [UnsafeCell<MaybeUninit<T>>; N],
 }
-
 
 impl <T: core::marker::Copy, const N: usize> RingBuf<T, N> {
     
@@ -20,29 +62,7 @@ impl <T: core::marker::Copy, const N: usize> RingBuf<T, N> {
 
     #[inline]
     pub const fn new() -> Self {
-        RingBuf { rd_idx: Cell::new(0), wr_idx: Cell::new(0), buffer_ucell: [Self::INIT_U; N] }
-    }
-
-    #[inline]
-    pub fn wrap(val: usize) -> usize {
-        // Wrap index between [0, 2*N-1]
-        //TODO: Note this is only needed if N is not power of 2
-        // For power 2 of values, the natural overflow wrap
-        // matches the wraparound of N as well
-        if val <= 2*N - 1 {
-            val
-        } else {
-            val - 2*N
-        }
-    }
-
-    #[inline]
-    pub fn mask(val: usize) -> usize {
-        if val <= N - 1 {
-            val
-        } else {
-            val - N
-        }
+        RingBuf { rd_idx: Index::new(0), wr_idx: Index::new(0), buffer_ucell: [Self::INIT_U; N] }
     }
 
     #[inline]
@@ -52,6 +72,7 @@ impl <T: core::marker::Copy, const N: usize> RingBuf<T, N> {
 
     #[inline]
     pub fn size(&self) -> usize {
+        // wrapping sub
         self.wr_idx.get().wrapping_sub(self.rd_idx.get())
     }
     #[inline]
@@ -59,20 +80,40 @@ impl <T: core::marker::Copy, const N: usize> RingBuf<T, N> {
         self.size() == N
     }
     #[inline]
-    pub fn push(&self, val: T) {
-        assert!(!self.full());
-        unsafe {(*self.buffer_ucell[Self::mask(self.wr_idx.get())].get()).write(val);}
-        self.wr_idx.set(Self::wrap(self.wr_idx.get()+1));
+    // The Result<> return enforces handling of return type
+    // I.e. if user does not check for push success, the compiler
+    // generates warnings
+    pub fn push(&self, val: T) -> Result<(), T> {
+        if !self.full() {
+            // buffer_ucell contains UnsafeCell<MaybeUninit<T>>
+            // UnsafeCell's get is defined as "fn get(&self) -> *mut T"
+            // * (* mut T) deference allows the MaybeUninit.write() to be called to 
+            // Set the value
+            unsafe {(*self.buffer_ucell[self.wr_idx.mask()].get()).write(val);}
+            self.wr_idx.wrap_inc();
+            Ok(())
+        }
+        else {
+            Err(val)
+        }
     }
     #[inline]
-    pub fn pop(& self) -> T {
-        assert!(!self.empty());
-        let val = unsafe {*(self.buffer_ucell[Self::mask(self.rd_idx.get())].get() as *const T)};
-        self.rd_idx.set(Self::wrap(self.rd_idx.get() + 1));
-        val
+    pub fn peek(&self) -> Option<T> {
+        if self.empty() {
+            None
+        }
+        else {
+            let val = unsafe {*(self.buffer_ucell[self.rd_idx.mask()].get() as *const T)};
+            Some(val)
+        }
     }
- 
+
+    #[inline]
+    pub fn pop(&self) -> Option<T> {
+        let res = self.peek();
+        if res.is_some() {
+            self.rd_idx.wrap_inc();
+        }
+        res
+    }
 }
-
-
-

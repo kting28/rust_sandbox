@@ -240,6 +240,7 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
         
     let mut rbufs: RingBufSimple<u32, 4> = RingBufSimple::new(0);
     rbufs.push(4);
+    rbufs.pop();
     // Here there's no way to pass the mutable reference to anywhere
     // else since there's can be only 1 mutable reference
     
@@ -247,10 +248,10 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
 
 
     for _ in 0..32 {
-        rbuf.push(0);
-        rbuf.push(1);
-        rbuf.push(2);
-        rbuf.push(3);
+        assert!(rbuf.push(0).is_ok());
+        assert!(rbuf.push(1).is_ok());
+        assert!(rbuf.push(2).is_ok());
+        assert!(rbuf.push(3).is_ok());
         for j in 0..4 {
           println!("itr {} wr: {}", j, rbuf.wr_idx.get());
           println!("itr {} rd: {}", j, rbuf.rd_idx.get());
