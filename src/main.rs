@@ -12,6 +12,7 @@ pub mod atomics;
 pub mod spsc;
 pub mod ringbuf;
 pub mod ringbuf_simple;
+pub mod ringbuf_ref;
 
 #[macro_use]
 extern crate bitfield;
@@ -22,6 +23,7 @@ use spsc::Queue;
 
 use ringbuf::RingBuf;
 use ringbuf_simple::RingBufSimple;
+use ringbuf_ref::RingBufRref;
 
 // Structure Examples
 #[derive(Copy, Clone)]
@@ -90,7 +92,7 @@ bitfield! {
 #[derive(Copy, Clone)]
 struct Struct1 {
     id: i32,
-    bf_arry : [BfStruct; 4]
+    bf_array : [BfStruct; 4]
 }
 
 struct GenericStruct<const N: usize> {
@@ -132,7 +134,7 @@ impl Shared {
     }
 }
 static mut SHARED: Shared = Shared {
-    in_use:0, data: Struct1 { id:0 , bf_arry: [BfStruct(0); 4]},
+    in_use:0, data: Struct1 { id:0 , bf_array: [BfStruct(0); 4]},
 };
 
 // Helpers for this example
@@ -238,6 +240,7 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
     //let c: u8 = a.wrapping_sub(b);
     //println!("{} - {} = {}", a, b, c);
         
+
     let mut rbufs: RingBufSimple<u32, 4> = RingBufSimple::new(0);
     rbufs.push(4);
     rbufs.pop();
@@ -260,6 +263,19 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
     }
     println!("final wr: {}",  rbuf.wr_idx.get());
     println!("final rd: {}",  rbuf.rd_idx.get());
+
+    let rbufr: RingBufRref<Struct1, 4> = RingBufRref::new();
+
+    let mut loc = rbufr.alloc();
+
+    if let Ok(ref mut v) = loc {
+        v.id = 1;
+        v.bf_array[2].set_all(0xFF);
+        assert!(rbufr.commit().is_ok());
+    } else {
+        println!("alloc failed, rbufr is full!");
+    }
+
 
     return 0;
 
