@@ -17,7 +17,7 @@ impl <const N: usize> Index<N> {
         // Note this is only needed if N is not power of 2
         // For power 2 of values, the natural overflow wrap
         // matches the wraparound of N as well
-        if !N.is_power_of_two() && val <= 2*N-1 {
+        if !N.is_power_of_two() && val > 2*N-1 {
             self.cell.set(val - 2*N);
         }
         else {
@@ -32,10 +32,10 @@ impl <const N: usize> Index<N> {
             val & (N-1)
         }
         else {
-            if val <= N - 1 {
-                val
-            } else {
+            if val > N - 1 {
                 val - N
+            } else {
+                val
             }
         }
     }

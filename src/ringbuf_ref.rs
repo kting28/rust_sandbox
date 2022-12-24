@@ -12,12 +12,13 @@ impl <const N: usize> Index<N> {
 
     #[inline]
     pub fn wrap_inc(&self) {
-        let val = self.cell.get() + 1;
+
+        let val = self.cell.get().wrapping_add(1);
         // Wrap index between [0, 2*N-1]
         // Note this is only needed if N is not power of 2
         // For power 2 of values, the natural overflow wrap
         // matches the wraparound of N as well
-        if !N.is_power_of_two() && val <= 2*N-1 {
+        if !N.is_power_of_two() && val > 2*N-1 {
             self.cell.set(val - 2*N);
         }
         else {
@@ -32,10 +33,10 @@ impl <const N: usize> Index<N> {
             val & (N-1)
         }
         else {
-            if val <= N - 1 {
-                val
-            } else {
+            if val > N - 1 {
                 val - N
+            } else {
+                val
             }
         }
     }
@@ -91,8 +92,8 @@ impl <T, const N: usize> RingBufRef<T, N> {
         if !self.full() {
             // buffer_ucell contains UnsafeCell<MaybeUninit<T>>
             // UnsafeCell's get is defined as "fn get(&self) -> *mut T"
-            let x: *mut MaybeUninit<T> = self.buffer_ucell[self.wr_idx.mask()].get();
-            let t: &mut T = unsafe {  &mut *(x as *mut T)};
+            let m: *mut MaybeUninit<T> = self.buffer_ucell[self.wr_idx.mask()].get();
+            let t: &mut T = unsafe {  &mut *(m as *mut T)};
             Ok(t)
         }
         else {
