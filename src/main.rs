@@ -23,7 +23,7 @@ use spsc::Queue;
 
 use ringbuf::RingBuf;
 use ringbuf_simple::RingBufSimple;
-use ringbuf_ref::RingBufRref;
+use ringbuf_ref::RingBufRef;
 
 // Structure Examples
 #[derive(Copy, Clone)]
@@ -264,7 +264,7 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
     println!("final wr: {}",  rbuf.wr_idx.get());
     println!("final rd: {}",  rbuf.rd_idx.get());
 
-    let rbufr: RingBufRref<Struct1, 4> = RingBufRref::new();
+    let rbufr: RingBufRef<Struct1, 4> = RingBufRef::new();
 
     let mut loc = rbufr.alloc();
 

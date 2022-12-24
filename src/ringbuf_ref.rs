@@ -47,7 +47,7 @@ impl <const N: usize> Index<N> {
         Index { cell: Cell::new(val) }
     }
 }
-pub struct RingBufRref<T, const N: usize> {
+pub struct RingBufRef<T, const N: usize> {
     // this is from where we dequeue items
     pub rd_idx: Index<N>,
     //  where we enqueue new items
@@ -56,13 +56,13 @@ pub struct RingBufRref<T, const N: usize> {
     buffer_ucell: [UnsafeCell<MaybeUninit<T>>; N],
 }
 
-impl <T, const N: usize> RingBufRref<T, N> {
+impl <T, const N: usize> RingBufRef<T, N> {
     
     const INIT_U: UnsafeCell<MaybeUninit<T>> = UnsafeCell::new(MaybeUninit::uninit());
 
     #[inline]
     pub const fn new() -> Self {
-        RingBufRref { rd_idx: Index::new(0), wr_idx: Index::new(0), buffer_ucell: [Self::INIT_U; N] }
+        RingBufRef { rd_idx: Index::new(0), wr_idx: Index::new(0), buffer_ucell: [Self::INIT_U; N] }
     }
 
     #[inline]
