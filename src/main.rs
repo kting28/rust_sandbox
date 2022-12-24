@@ -247,7 +247,7 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
     // Here there's no way to pass the mutable reference to anywhere
     // else since there's can be only 1 mutable reference
     
-    let rbuf: RingBuf<u32, 4> = RingBuf::new();
+    let rbuf: RingBuf<u32, 5> = RingBuf::new();
 
 
     for _ in 0..32 {
