@@ -1,9 +1,12 @@
 
-//Atempt with Ringbuf using interior mutability
+//! Fixed capacity Single Producer Single Consumer Ringbuffer with no mutex protection.
+//! Implementation based on https://www.snellman.net/blog/archive/2016-12-13-ring-buffers/
 
 use core::{cell::Cell, cell::UnsafeCell};
 use core::{mem::MaybeUninit};
 
+/// Internal Index struct emcapsulating masking and wrapping operations
+/// according to size const size N
 #[derive(Eq, PartialEq)]
 pub struct Index<const N: usize> {
     cell: Cell<usize>
@@ -13,19 +16,23 @@ impl <const N: usize> Index<N> {
     #[inline]
     pub fn wrap_inc(&self) {
 
+        // Wrapping increment by 1 first
         let val = self.cell.get().wrapping_add(1);
+
         // Wrap index between [0, 2*N-1]
-        // Note this is only needed if N is not power of 2
         // For power 2 of values, the natural overflow wrap
-        // matches the wraparound of N as well
+        // matches the wraparound of N. Hence the manual wrap
+        // below is not required for power of 2 N
         if !N.is_power_of_two() && val > 2*N-1 {
-            self.cell.set(val - 2*N);
+            // val = val - 2*N
+            self.cell.set(val.wrapping_sub(2*N));
         }
         else {
             self.cell.set(val);
         }
     }
     
+    // Mask the value for indexing [0, N-1]
     #[inline]
     pub fn mask(&self) -> usize {
         let val = self.cell.get();
@@ -48,6 +55,9 @@ impl <const N: usize> Index<N> {
         Index { cell: Cell::new(val) }
     }
 }
+
+/// A ring buffer of capacity N holding items of type T.
+/// Non power-of-two N is supported but less efficient.
 pub struct RingBufRef<T, const N: usize> {
     // this is from where we dequeue items
     pub rd_idx: Index<N>,
@@ -80,14 +90,15 @@ impl <T, const N: usize> RingBufRef<T, N> {
     pub fn full(&self) -> bool {
         self.size() == N
     }
+
+    /// Allocate means returning the write index location as mutable reference.
+    /// The Result<> return enforces handling of return type
+    /// I.e. if user does not check for push success, the compiler
+    /// generates warnings
+    /// Calling alloc twice without commit in between results in the same
+    /// location written! We could add some protection by remembering this
+    /// during alloc but this will incur runtime cost
     #[inline]
-    // The Result<> return enforces handling of return type
-    // I.e. if user does not check for push success, the compiler
-    // generates warnings
-    // Returns a mutable reference to the entry to be written
-    // Calling alloc twice without commit in between results in the same
-    // location written! We could add some protection by remembering this
-    // during alloc but this will incur runtime cost
     pub fn alloc(&self) -> Result<&mut T, ()> {
         if !self.full() {
             // buffer_ucell contains UnsafeCell<MaybeUninit<T>>
@@ -100,13 +111,10 @@ impl <T, const N: usize> RingBufRef<T, N> {
             Err(())
         }
     }
+    /// Commit whatever at the write index location by moving the write index
     #[inline]
     pub fn commit(&self) -> Result<(), ()> {
         if !self.full() {
-            // buffer_ucell contains UnsafeCell<MaybeUninit<T>>
-            // UnsafeCell's get is defined as "fn get(&self) -> *mut T"
-            // * (* mut T) deference allows the MaybeUninit.write() to be called to 
-            // Set the value
             self.wr_idx.wrap_inc();
             Ok(())
         }
@@ -115,6 +123,9 @@ impl <T, const N: usize> RingBufRef<T, N> {
         }
     }
 
+    /// Alloc and commit in one step by providing the value T to be written
+    /// val's ownership is moved. (Question: it seems if T implements Clone,
+    /// compiler copies T)
     #[inline]
     pub fn push(&self, val: T) -> Result<(), ()> {
         if !self.full() {
@@ -130,6 +141,7 @@ impl <T, const N: usize> RingBufRef<T, N> {
             Err(())
         }
     }
+    /// Returns an Option of mutable reference to location at read index
     #[inline]
     pub fn peek(&self) -> Option<&mut T> {
         if self.empty() {
@@ -142,6 +154,7 @@ impl <T, const N: usize> RingBufRef<T, N> {
         }
     }
     
+    /// Consume the item at rd_idx
     #[inline]
     pub fn pop(&self) -> Result<(), ()> {
         if !self.empty() {

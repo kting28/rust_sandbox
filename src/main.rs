@@ -95,6 +95,11 @@ struct Struct1 {
     bf_array : [BfStruct; 4]
 }
 
+// Structure that does not implement Copy/Clone
+struct Struct2 {
+    id: i32,
+    array : [u32; 4]
+}
 struct GenericStruct<const N: usize> {
     array: [i32; N]
 }
@@ -264,19 +269,29 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
     println!("final wr: {}",  rbuf.wr_idx.get());
     println!("final rd: {}",  rbuf.rd_idx.get());
 
-    let rbufr: RingBufRef<Struct1, 4> = RingBufRef::new();
+    //let rbufr: RingBufRef<Struct1, 4> = RingBufRef::new();
 
-    let mut loc = rbufr.alloc();
+    //let mut loc = rbufr.alloc();
 
-    if let Ok(ref mut v) = loc {
-        v.id = 1;
-        v.bf_array[2].set_all(0xFF);
-        assert!(rbufr.commit().is_ok());
-    } else {
-        println!("alloc failed, rbufr is full!");
-    }
+    //if let Ok(ref mut v) = loc {
+    //    v.id = 1;
+    //    v.bf_array[2].set_all(0xFF);
+    //    assert!(rbufr.commit().is_ok());
+    //} else {
+    //    println!("alloc failed, rbufr is full!");
+    //}
 
+    let rbufr: RingBufRef<Struct2, 3> = RingBufRef::new();
+    let s: Struct2 = Struct2 {id: 2, array:[0; 4]};
 
+    rbufr.push(s).unwrap();
+
+    // This is no possible since S is moved after the push
+    //println!("{}", s.id); 
+    //s.id = 4;
+    let p = rbufr.peek().unwrap();
+    println!("id: {} array: {:?}", p.id, p.array);
+    
     return 0;
 
 
