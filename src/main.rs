@@ -14,6 +14,8 @@ pub mod ringbuf;
 pub mod ringbuf_simple;
 pub mod ringbuf_ref;
 
+pub mod static_shared;
+
 #[macro_use]
 extern crate bitfield;
 extern crate libc_print;
@@ -269,32 +271,36 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
     println!("final wr: {}",  rbuf.wr_idx.get());
     println!("final rd: {}",  rbuf.rd_idx.get());
 
-    //let rbufr: RingBufRef<Struct1, 4> = RingBufRef::new();
+    // Demonstration of alloc and commit usage and 
+    // usage of "if let"
+    let rbufr1: RingBufRef<Struct1, 4> = RingBufRef::new();
 
-    //let mut loc = rbufr.alloc();
+    let mut loc = rbufr1.alloc();
 
-    //if let Ok(ref mut v) = loc {
-    //    v.id = 1;
-    //    v.bf_array[2].set_all(0xFF);
-    //    assert!(rbufr.commit().is_ok());
-    //} else {
-    //    println!("alloc failed, rbufr is full!");
-    //}
+    if let Ok(ref mut v) = loc {
+        v.id = 1;
+        v.bf_array[2].set_all(0xFF);
+        assert!(rbufr1.commit().is_ok());
+    } else {
+        println!("alloc failed, rbufr is full!");
+    }
 
+    // Demonstration of ownership move of direct push 
+    // call.
     let rbufr: RingBufRef<Struct2, 3> = RingBufRef::new();
     let s: Struct2 = Struct2 {id: 2, array:[0; 4]};
 
     rbufr.push(s).unwrap();
-
-    // This is no possible since S is moved after the push
+    
+    // Accessing 's' is not possible since s is moved after the push
+    // Question - however if Struct2 implements Clone, Copy, 
+    // compiler seems to copy it.
     //println!("{}", s.id); 
     //s.id = 4;
     let p = rbufr.peek().unwrap();
     println!("id: {} array: {:?}", p.id, p.array);
     
     return 0;
-
-
 }
 
 // These functions are used by the compiler, but not

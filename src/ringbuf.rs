@@ -1,9 +1,14 @@
 
-//Atempt with Ringbuf using interior mutability
+//! Fixed capacity Single Producer Single Consumer Ringbuffer with no mutex protection.
+//! Implementation based on https://www.snellman.net/blog/archive/2016-12-13-ring-buffers/
+//! This version is for demonstration only. The value T is copied in and out of the array
+//! on push/peek
 
 use core::{cell::Cell, cell::UnsafeCell};
 use core::{mem::MaybeUninit};
 
+/// Internal Index struct emcapsulating masking and wrapping operations
+/// according to size const size N
 #[derive(Eq, PartialEq)]
 pub struct Index<const N: usize> {
     cell: Cell<usize>
@@ -12,19 +17,24 @@ impl <const N: usize> Index<N> {
 
     #[inline]
     pub fn wrap_inc(&self) {
-        let val = self.cell.get() + 1;
+
+        // Wrapping increment by 1 first
+        let val = self.cell.get().wrapping_add(1);
+
         // Wrap index between [0, 2*N-1]
-        // Note this is only needed if N is not power of 2
         // For power 2 of values, the natural overflow wrap
-        // matches the wraparound of N as well
+        // matches the wraparound of N. Hence the manual wrap
+        // below is not required for power of 2 N
         if !N.is_power_of_two() && val > 2*N-1 {
-            self.cell.set(val - 2*N);
+            // val = val - 2*N
+            self.cell.set(val.wrapping_sub(2*N));
         }
         else {
             self.cell.set(val);
         }
     }
     
+    // Mask the value for indexing [0, N-1]
     #[inline]
     pub fn mask(&self) -> usize {
         let val = self.cell.get();
@@ -47,6 +57,7 @@ impl <const N: usize> Index<N> {
         Index { cell: Cell::new(val) }
     }
 }
+
 pub struct RingBuf<T, const N: usize> {
     // this is from where we dequeue items
     pub rd_idx: Index<N>,
