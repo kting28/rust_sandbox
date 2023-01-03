@@ -14,11 +14,13 @@ pub mod ringbuf;
 pub mod ringbuf_simple;
 pub mod ringbuf_ref;
 
-pub mod static_shared;
+pub mod shared_singleton;
+pub mod spsc_example;
 
 #[macro_use]
 extern crate bitfield;
 extern crate libc_print;
+
 use libc_print::std_name::{println};
 
 use spsc::Queue;
@@ -26,6 +28,11 @@ use spsc::Queue;
 use ringbuf::RingBuf;
 use ringbuf_simple::RingBufSimple;
 use ringbuf_ref::RingBufRef;
+
+use shared_singleton::SharedSingleton;
+
+use crate::spsc_example::consumer_irq;
+use crate::spsc_example::producer_irq;
 
 // Structure Examples
 #[derive(Copy, Clone)]
@@ -57,7 +64,7 @@ union UnionP {
 // bitfield crate
 // TODO: does BitField1 require repr(C) ?
 bitfield!{
-  #[derive(Copy, Clone)]
+  //#[derive(Copy, Clone)]
   // No more than 32 bits
   pub struct BfStruct(u32);
   //impl Debug;
@@ -67,11 +74,12 @@ bitfield!{
   pub bf2, set_bf2 : 31, 9;
   pub all, set_all : 31, 0;
 }
+pub const BF_STRUCT_0: BfStruct = BfStruct(0);
 
 
 // Bitfield with u8 array backing
 bitfield! {
-  #[derive(Copy, Clone)]
+  //#[derive(Copy, Clone)]
   pub struct BfStructByteArr([u8]);
   impl Debug;
   // Default type of following fields
@@ -88,10 +96,11 @@ bitfield! {
   pub all, set_all : 17, 0;
 }
 
+pub const BF_STRUCT_BA_0: BfStructByteArr<[u8; 3]>= BfStructByteArr([0;3]);
 
 // Structure with bitfield
 #[repr(C)]
-#[derive(Copy, Clone)]
+//#[derive(Copy, Clone)]
 struct Struct1 {
     id: i32,
     bf_array : [BfStruct; 4]
@@ -141,17 +150,32 @@ impl Shared {
     }
 }
 static mut SHARED: Shared = Shared {
-    in_use:0, data: Struct1 { id:0 , bf_array: [BfStruct(0); 4]},
+    in_use:0, data: Struct1 { id:0 , bf_array: [BF_STRUCT_0; 4]},
 };
+
+
+
+static PAYLOAD: [SharedSingleton<Struct1>; 4] = [SharedSingleton::INIT_0;4];
 
 // Helpers for this example
 fn print_type_of<T>(_: &T) {
     println!("{}", core::any::type_name::<T>())
 }
 
-
 fn ringbuf_consume<T: core::marker::Copy, const N: usize>(rbuf: &RingBuf<T, N>) {
     rbuf.pop();
+}
+struct ProducerState{
+    last_cfg_idx: u32,
+}
+fn local_static() {
+    
+    let state: &'static mut ProducerState = {
+        static mut S: ProducerState = ProducerState { last_cfg_idx: 1 };
+        unsafe { &mut S }
+    };
+    println!("Current state: {}", state.last_cfg_idx);
+    state.last_cfg_idx = state.last_cfg_idx ^ 1;
 }
 
 #[no_mangle]
@@ -237,6 +261,16 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
 
     unsafe {SHARED.return_data() };
 
+    let alloc_res = PAYLOAD[0].get_mut_ref();
+
+    if let Some(v) = alloc_res {
+        v.id = 12;
+        v.bf_array[0].set_bf1(5);
+        PAYLOAD[0].pass_to_consumer().unwrap();
+    }
+    else {
+        println!("PAYLOAD already in use!");
+    }
     //let shared_intf2 = unsafe {SHARED.take_data() };
     // This asserts as Option is returned is None 
     //println!("{}", shared_intf2.unwrap().id);
@@ -299,7 +333,17 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
     //s.id = 4;
     let p = rbufr.peek().unwrap();
     println!("id: {} array: {:?}", p.id, p.array);
-    
+
+    local_static();
+    local_static();
+    local_static();
+ 
+    producer_irq(0);
+    producer_irq(0);
+    consumer_irq(0);
+    consumer_irq(0);
+    consumer_irq(0);
+   
     return 0;
 }
 

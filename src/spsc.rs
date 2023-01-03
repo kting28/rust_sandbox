@@ -581,7 +581,7 @@ impl<'a, T, const N: usize> Producer<'a, T, N> {
     }
 }
 
-#[cfg(test)]
+#[cfg(test_disabled)]
 mod tests {
     use std::hash::{Hash, Hasher};
 

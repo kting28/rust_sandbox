@@ -66,10 +66,14 @@ pub struct RingBufRef<T, const N: usize> {
     // this is the backend array
     buffer_ucell: [UnsafeCell<MaybeUninit<T>>; N],
 }
+// Delcare this is thread safe due to the owner protection
+// sequence (Producer-> consumer , consumer -> owner)
+unsafe impl <T, const N: usize> Sync for RingBufRef <T, N> {}
 
 impl <T, const N: usize> RingBufRef<T, N> {
     
     const INIT_U: UnsafeCell<MaybeUninit<T>> = UnsafeCell::new(MaybeUninit::uninit());
+    pub const INIT_0: RingBufRef<T, N> = Self::new();
 
     #[inline]
     pub const fn new() -> Self {
