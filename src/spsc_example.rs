@@ -48,12 +48,16 @@ pub struct Cfg {
     sub_cfg: SubCfg,
 }
 
+const CMD_Q_DEPTH: usize = 4;
+const CMD_PAYLOAD_DEPTH: usize = 2;
 pub struct Interface {
-    cmd_q: RingBufRef<Command, 4>,
-    payload: [SharedSingleton<Cfg>; 2]
+    cmd_q: RingBufRef<Command, CMD_Q_DEPTH>,
+    payload: [SharedSingleton<Cfg>; CMD_PAYLOAD_DEPTH]
 }
 
-static SHARED_INTF: Interface = Interface {cmd_q: RingBufRef::INIT_0, payload: [SharedSingleton::INIT_0; 2] };
+const NUM_INTFS: usize = 4;
+const INTF_INIT: Interface = Interface {cmd_q: RingBufRef::INIT_0, payload: [SharedSingleton::INIT_0; 2]};
+static SHARED_INTF: [Interface; NUM_INTFS] =  [INTF_INIT; NUM_INTFS];
 
 struct ProducerState{
     iter: u32,
@@ -68,26 +72,38 @@ pub fn producer_irq(idx: usize) {
         static mut S: [ProducerState;4] = [INIT_S; 4];
         unsafe { &mut S[idx] }
     };
+    
+    let intf: &'static Interface = &SHARED_INTF[idx];
 
-    let alloc_res = SHARED_INTF.cmd_q.alloc();
+    let alloc_res = intf.cmd_q.alloc();
 
     if let Ok(cmd) = alloc_res {
 
         let new_idx = state.last_cfg_idx ^ 1;
-        if SHARED_INTF.payload[new_idx as usize].is_consumer_owned() {
+        if intf.payload[new_idx as usize].is_consumer_owned() {
             println!("p{} No valid command payload, skip producing command this cycle!", idx);
         }
         else {
+            // Set command header and time information
             cmd.header.set_cmd_type(CommandType::PROCESS as u32);
+            cmd.sys_time.set_sfn(state.iter);
+            cmd.sys_time.set_slot(0);
+
+            // Claim payload and attach to command
             state.last_cfg_idx = new_idx;
             cmd.header.set_cfg_idx(new_idx);
-            let singleton: &SharedSingleton<Cfg> = &SHARED_INTF.payload[new_idx as usize];
+            let singleton: &SharedSingleton<Cfg> = &intf.payload[new_idx as usize];
             let payload_ref = singleton.get_mut_ref().unwrap();
+            // Set some random data
             payload_ref.id = state.iter+1;
             payload_ref.sub_cfg.arr[0] = state.iter as i32;
             state.iter = state.iter + 1;
+
+            // Set the payload owner
             singleton.pass_to_consumer().unwrap();
-            SHARED_INTF.cmd_q.commit().unwrap();
+
+            // Commit the command
+            intf.cmd_q.commit().unwrap();
             println!("p{} Sent 1 command", idx);
         }
     }
@@ -97,21 +113,22 @@ pub fn producer_irq(idx: usize) {
 }
 
 pub fn consumer_irq(idx: usize) {
-
-
-    while !SHARED_INTF.cmd_q.empty() {
-        let cmd = SHARED_INTF.cmd_q.peek();
+    
+    // Retrieve my interface
+    let intf: &'static Interface = &SHARED_INTF[idx];
+    
+    while !intf.cmd_q.empty() {
+        let cmd = intf.cmd_q.peek();
         match cmd {
             Some(cmd) => {
-
                 println!("c{} Received command type {}", idx, cmd.header.cmd_type());
-
-                assert!(SHARED_INTF.payload[cmd.header.cfg_idx() as usize].is_consumer_owned());
-                SHARED_INTF.payload[cmd.header.cfg_idx() as usize].return_to_producer().unwrap();
-                SHARED_INTF.cmd_q.pop().unwrap();
+                assert!(intf.payload[cmd.header.cfg_idx() as usize].is_consumer_owned());
+                intf.payload[cmd.header.cfg_idx() as usize].return_to_producer().unwrap();
+                intf.cmd_q.pop().unwrap();
                 println!("c{} Consumed 1 command", idx);
             },
             None => {
+                println!("command queue empty but nothing returned from peek!");
                 assert!(false)
             }
         }
