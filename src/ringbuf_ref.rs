@@ -145,9 +145,21 @@ impl <T, const N: usize> RingBufRef<T, N> {
             Err(())
         }
     }
+    /// Returns an Option of reference to location at read index
+    #[inline]
+    pub fn peek(&self) -> Option<&T> {
+        if self.empty() {
+            None
+        }
+        else {
+            let x: *mut MaybeUninit<T> = self.buffer_ucell[self.rd_idx.mask()].get();
+            let t: &T = unsafe {  & *(x as *const T)};
+            Some(t)
+        }
+    }
     /// Returns an Option of mutable reference to location at read index
     #[inline]
-    pub fn peek(&self) -> Option<&mut T> {
+    pub fn peek_mut(&self) -> Option<&mut T> {
         if self.empty() {
             None
         }
@@ -157,7 +169,7 @@ impl <T, const N: usize> RingBufRef<T, N> {
             Some(t)
         }
     }
-    
+
     /// Consume the item at rd_idx
     #[inline]
     pub fn pop(&self) -> Result<(), ()> {
