@@ -142,7 +142,7 @@ pub fn consumer_irq(idx: usize) {
     // Retrieve my interface
     let intf: &'static Interface = &SHARED_INTF[idx];
     
-    while !intf.cmd_q.empty() {
+    while !intf.cmd_q.is_empty() {
         let cmd = intf.cmd_q.peek();
         match cmd {
             Some(cmd) => {

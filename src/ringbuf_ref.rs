@@ -81,18 +81,24 @@ impl <T, const N: usize> RingBufRef<T, N> {
     }
 
     #[inline]
-    pub fn empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.rd_idx == self.wr_idx
     }
 
     #[inline]
-    pub fn size(&self) -> usize {
-        // wrapping sub
+    pub fn len(&self) -> usize {
+        // returns the number of elements between read and write pointer
+        // use wrapping sub
         self.wr_idx.get().wrapping_sub(self.rd_idx.get())
     }
     #[inline]
-    pub fn full(&self) -> bool {
-        self.size() == N
+    pub fn is_full(&self) -> bool {
+        self.len() == N
+    }
+
+    #[inline]
+    pub fn capacity(&self) -> usize {
+        N
     }
 
     /// Allocate means returning the write index location as mutable reference.
@@ -104,7 +110,7 @@ impl <T, const N: usize> RingBufRef<T, N> {
     /// during alloc but this will incur runtime cost
     #[inline]
     pub fn alloc(&self) -> Result<&mut T, ()> {
-        if !self.full() {
+        if !self.is_full() {
             // buffer_ucell contains UnsafeCell<MaybeUninit<T>>
             // UnsafeCell's get is defined as "fn get(&self) -> *mut T"
             let m: *mut MaybeUninit<T> = self.buffer_ucell[self.wr_idx.mask()].get();
@@ -118,7 +124,7 @@ impl <T, const N: usize> RingBufRef<T, N> {
     /// Commit whatever at the write index location by moving the write index
     #[inline]
     pub fn commit(&self) -> Result<(), ()> {
-        if !self.full() {
+        if !self.is_full() {
             self.wr_idx.wrap_inc();
             Ok(())
         }
@@ -132,7 +138,7 @@ impl <T, const N: usize> RingBufRef<T, N> {
     /// compiler copies T)
     #[inline]
     pub fn push(&self, val: T) -> Result<(), ()> {
-        if !self.full() {
+        if !self.is_full() {
             // buffer_ucell contains UnsafeCell<MaybeUninit<T>>
             // UnsafeCell's get is defined as "fn get(&self) -> *mut T"
             // * (* mut T) deference allows the MaybeUninit.write() to be called to 
@@ -148,7 +154,7 @@ impl <T, const N: usize> RingBufRef<T, N> {
     /// Returns an Option of reference to location at read index
     #[inline]
     pub fn peek(&self) -> Option<&T> {
-        if self.empty() {
+        if self.is_empty() {
             None
         }
         else {
@@ -160,7 +166,7 @@ impl <T, const N: usize> RingBufRef<T, N> {
     /// Returns an Option of mutable reference to location at read index
     #[inline]
     pub fn peek_mut(&self) -> Option<&mut T> {
-        if self.empty() {
+        if self.is_empty() {
             None
         }
         else {
@@ -173,7 +179,7 @@ impl <T, const N: usize> RingBufRef<T, N> {
     /// Consume the item at rd_idx
     #[inline]
     pub fn pop(&self) -> Result<(), ()> {
-        if !self.empty() {
+        if !self.is_empty() {
             self.rd_idx.wrap_inc();
             Ok(())
         }
