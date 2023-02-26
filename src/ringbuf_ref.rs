@@ -3,7 +3,7 @@
 //! Implementation based on https://www.snellman.net/blog/archive/2016-12-13-ring-buffers/
 
 use core::{cell::Cell, cell::UnsafeCell};
-use core::{mem::MaybeUninit};
+use core::mem::MaybeUninit;
 
 /// Internal Index struct emcapsulating masking and wrapping operations
 /// according to size const size N
@@ -11,6 +11,13 @@ use core::{mem::MaybeUninit};
 pub struct Index<const N: usize> {
     cell: Cell<usize>
 }
+
+#[derive(Debug)]
+pub enum ErrCode {
+    BuffFull,
+    BuffEmpty
+}
+
 impl <const N: usize> Index<N> {
 
     #[inline]
@@ -39,14 +46,14 @@ impl <const N: usize> Index<N> {
         if N.is_power_of_two() {
             val & (N-1)
         }
+        else if val > N - 1 {
+            val - N
+        } 
         else {
-            if val > N - 1 {
-                val - N
-            } else {
-                val
-            }
+            val
         }
     }
+
     #[inline]
     pub fn get(&self) -> usize {
         self.cell.get()
@@ -109,7 +116,7 @@ impl <T, const N: usize> RingBufRef<T, N> {
     /// location written! We could add some protection by remembering this
     /// during alloc but this will incur runtime cost
     #[inline]
-    pub fn alloc(&self) -> Result<&mut T, ()> {
+    pub fn alloc(&self) -> Result<&mut T, ErrCode> {
         if !self.is_full() {
             // buffer_ucell contains UnsafeCell<MaybeUninit<T>>
             // UnsafeCell's get is defined as "fn get(&self) -> *mut T"
@@ -118,18 +125,18 @@ impl <T, const N: usize> RingBufRef<T, N> {
             Ok(t)
         }
         else {
-            Err(())
+            Err(ErrCode::BuffFull)
         }
     }
     /// Commit whatever at the write index location by moving the write index
     #[inline]
-    pub fn commit(&self) -> Result<(), ()> {
+    pub fn commit(&self) -> Result<(), ErrCode> {
         if !self.is_full() {
             self.wr_idx.wrap_inc();
             Ok(())
         }
         else {
-            Err(())
+            Err(ErrCode::BuffFull)
         }
     }
 
@@ -137,7 +144,7 @@ impl <T, const N: usize> RingBufRef<T, N> {
     /// val's ownership is moved. (Question: it seems if T implements Clone,
     /// compiler copies T)
     #[inline]
-    pub fn push(&self, val: T) -> Result<(), ()> {
+    pub fn push(&self, val: T) -> Result<(), ErrCode> {
         if !self.is_full() {
             // buffer_ucell contains UnsafeCell<MaybeUninit<T>>
             // UnsafeCell's get is defined as "fn get(&self) -> *mut T"
@@ -148,7 +155,7 @@ impl <T, const N: usize> RingBufRef<T, N> {
             Ok(())
         }
         else {
-            Err(())
+            Err(ErrCode::BuffFull)
         }
     }
     /// Returns an Option of reference to location at read index
@@ -178,13 +185,13 @@ impl <T, const N: usize> RingBufRef<T, N> {
 
     /// Consume the item at rd_idx
     #[inline]
-    pub fn pop(&self) -> Result<(), ()> {
+    pub fn pop(&self) -> Result<(), ErrCode> {
         if !self.is_empty() {
             self.rd_idx.wrap_inc();
             Ok(())
         }
         else {
-            Err(())
+            Err(ErrCode::BuffEmpty)
         }
         
     }
