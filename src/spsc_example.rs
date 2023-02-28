@@ -1,7 +1,7 @@
 use crate::RingBufRef;
 use crate::SharedSingleton;
 
-use libc_print::std_name::{println};
+use libc_print::std_name::println;
 
 bitfield!{
     //#[derive(Copy, Clone)]
@@ -21,8 +21,7 @@ bitfield!{
 pub const SYS_TIME_0: SysTime = SysTime(0);
 
 enum CommandType {
-    PROCESS,
-    SKIP,
+    Process,
 }
 
 bitfield!{
@@ -63,7 +62,9 @@ pub struct Interface {
 
 // Set up 4 entries of interfaces
 const NUM_INTFS: usize = 4;
-// Init value
+// Init value, suppress the clippy warning for declaring const interior mutable "A “non-constant”
+// const item is a legacy way to supply an initialized value to downstream"
+#[allow(clippy::declare_interior_mutable_const)]
 const INTF_INIT: Interface = Interface {cmd_q: RingBufRef::INIT_0, payload: [SharedSingleton::INIT_0; CMD_PAYLOAD_DEPTH]};
 
 // Final instantiation as global
@@ -104,7 +105,7 @@ pub fn producer_irq(idx: usize) {
         }
         else {
             // Set command header and time information
-            cmd.header.set_cmd_type(CommandType::PROCESS as u32);
+            cmd.header.set_cmd_type(CommandType::Process as u32);
             cmd.sys_time.set_slot(state.iter);
             cmd.sys_time.set_sfn(state.iter >> 7);
 
@@ -119,7 +120,7 @@ pub fn producer_irq(idx: usize) {
             // Set some random data
             payload_ref.id = state.iter+1;
             payload_ref.sub_cfg.sub_cfg_arr[0] = state.iter as i32;
-            state.iter = state.iter + 1;
+            state.iter += 1;
 
             // Set the payload owner
             singleton.pass_to_consumer().unwrap();
@@ -134,7 +135,7 @@ pub fn producer_irq(idx: usize) {
         println!("p{} Command queue full, skip producing command this wakeup!", idx);
     }
     // Increment the state
-    state.iter = state.iter + 1;
+    state.iter += 1;
 }
 
 pub fn consumer_irq(idx: usize) {
@@ -162,8 +163,7 @@ pub fn consumer_irq(idx: usize) {
                 println!("c{} Consumed 1 command", idx);
             },
             None => {
-                println!("command queue empty but nothing returned from peek!");
-                assert!(false)
+                panic!("command queue empty but nothing returned from peek!");
             }
         }
     }

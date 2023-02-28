@@ -1,13 +1,19 @@
 
 #![allow(dead_code)]
 use core::{cell::Cell, cell::UnsafeCell};
-use core::{mem::MaybeUninit};
+use core::mem::MaybeUninit;
 use core::marker::Sync;
+
+#[derive(Debug)]
+pub enum ErrCode {
+    NotProducer,
+    NotConsumer
+}
 
 #[derive(Copy, Clone, PartialEq)]
 enum Owner {
-    PRODUCER,
-    CONSUMER,
+    Producer,
+    Consumer,
 }
 
 /// Single producer Single consumer Shared Singleton
@@ -34,16 +40,16 @@ impl <T> SharedSingleton<T> {
 
     #[inline]
     pub const fn new() -> Self {
-        SharedSingleton { owner: Cell::new(Owner::PRODUCER), ucell: Self::INIT_U  }
+        SharedSingleton { owner: Cell::new(Owner::Producer), ucell: Self::INIT_U  }
     }
 
     #[inline]
     pub fn is_producer_owned(&self) -> bool {
-        self.owner.get() == Owner::PRODUCER
+        self.owner.get() == Owner::Producer
     }
     #[inline]
     pub fn is_consumer_owned(&self) -> bool {
-        self.owner.get() == Owner::CONSUMER
+        self.owner.get() == Owner::Consumer
     }
 
 
@@ -61,19 +67,19 @@ impl <T> SharedSingleton<T> {
         }
     }
 
-    /// Pass ownership to CONSUMER from PRODUCER
+    /// Pass ownership to Consumer from Producer
     #[inline]
-    pub fn pass_to_consumer(&self) -> Result<(),()> {
+    pub fn pass_to_consumer(&self) -> Result<(),ErrCode> {
         if self.is_producer_owned() {
-            self.owner.set(Owner::CONSUMER);
+            self.owner.set(Owner::Consumer);
             Ok(())
         }
         else {
-            Err(())
+            Err(ErrCode::NotProducer)
         }
     }
 
-    /// Returns &T is location is owned by CONSUMER
+    /// Returns &T is location is owned by Consumer
     /// otherwise None
     /// NOTE: does not check for multiple calls
     #[inline]
@@ -90,13 +96,13 @@ impl <T> SharedSingleton<T> {
 
     /// Release location back to Producer
     #[inline]
-    pub fn return_to_producer(&self) -> Result<(),()> {
+    pub fn return_to_producer(&self) -> Result<(),ErrCode> {
         if self.is_consumer_owned() {
-            self.owner.set(Owner::PRODUCER);
+            self.owner.set(Owner::Producer);
             Ok(())
         }
         else {
-            Err(())
+            Err(ErrCode::NotConsumer)
         }
     }
 }
